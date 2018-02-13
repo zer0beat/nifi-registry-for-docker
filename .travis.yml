@@ -1,0 +1,27 @@
+language: bash
+services: docker
+
+branches:
+  only:
+    - master
+
+env:
+  - VERSION=0.1.0 LATEST=true
+
+before_script:
+  - env | sort
+  - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+  - cd ${VERSION}
+  - image="${DOCKERHUB_USERNAME}/nifi-registry"
+
+script:
+  - docker build --build-arg VERSION=${VERSION} -t "${image}:${VERSION}" .
+  - docker push "${image}:${VERSION}"
+  - |
+    if [ "$LATEST" == "true" ]; then
+      docker tag "${image}:${VERSION}" "${image}:latest"
+      docker push "${image}:latest" 
+    fi
+
+after_script:
+  - docker images
