@@ -6,22 +6,34 @@ branches:
     - master
 
 env:
-  - VERSION=0.1.0 LATEST=true
+  - VERSION=0.2.0 FOLDER=0.x.x LATEST=true
 
 before_script:
   - env | sort
-  - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
-  - cd ${VERSION}
-  - image="${DOCKERHUB_USERNAME}/nifi-registry"
+  - cd ${FOLDER}
+  - image="${DOCKERHUB_USERNAME}/nifi-registry:${VERSION}"
+  - latest="${DOCKERHUB_USERNAME}/nifi-registry:latest"
+  - buildimage="${DOCKERHUB_USERNAME}/nifi-registry:build"
 
-script:
-  - docker build --build-arg VERSION=${VERSION} -t "${image}:${VERSION}" .
-  - docker push "${image}:${VERSION}"
-  - |
-    if [ "$LATEST" == "true" ]; then
-      docker tag "${image}:${VERSION}" "${image}:latest"
-      docker push "${image}:latest" 
-    fi
-
-after_script:
-  - docker images
+jobs:
+  include:
+    - stage: build docker image
+      script:
+        - docker build --build-arg VERSION=${VERSION} -t "$buildimage" .
+        - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+        - docker push "$buildimage"
+    - stage: test
+      script:
+        - docker pull "$buildimage"
+        - ../test/run-tests.sh "$buildimage"
+    - stage: push docker image
+      script:
+        - docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+        - docker pull "$buildimage"
+        - docker tag "$buildimage" "$image"
+        - docker push "$image"
+        - |
+          if [ "$LATEST" == "true" ]; then
+            docker tag "$image" "$latest"
+            docker push "$latest" 
+          fi
